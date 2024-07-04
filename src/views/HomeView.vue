@@ -1,11 +1,13 @@
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue';
 import axios from 'axios';
 
 const selectedFiles = reactive([]);
 const isDragging = ref(false);
 const activeIndex = ref(0);
 const fileInput = ref(null);
+const SESSION_STORAGE_KEY = 'selectedFiles';
+const SESSION_EXPIRATION = 3 * 60 * 60 * 1000;
 
 const handleFileUpload = (event, index) => {
   const file = event.target.files[0];
@@ -41,14 +43,7 @@ const handleDrop = (event) => {
 const handleNewFileSelection = (event) => {
   const file = event.target.files[0];
   if (file) {
-    selectedFiles.push({
-      file,
-      imagePreview: URL.createObjectURL(file),
-      uploaded: false,
-      isScanning: false,
-      predictionMessage: '',
-    });
-    activeIndex.value = selectedFiles.length - 1;
+    addNewFile(file);
   }
 };
 
@@ -61,6 +56,7 @@ const addNewFile = (file = null) => {
     predictionMessage: '',
   });
   activeIndex.value = selectedFiles.length - 1;
+  saveFilesToSessionStorage();
 };
 
 const uploadImage = async (index) => {
@@ -92,6 +88,7 @@ const uploadImage = async (index) => {
     console.error('Error uploading image:', error);
   } finally {
     selectedFile.isScanning = false;
+    saveFilesToSessionStorage();
   }
 };
 
@@ -100,11 +97,39 @@ const resetFileInput = (index) => {
   selectedFiles[index].imagePreview = null;
   selectedFiles[index].predictionMessage = '';
   selectedFiles[index].uploaded = false;
+  saveFilesToSessionStorage();
 };
 
 const deleteFile = (index) => {
   selectedFiles.splice(index, 1);
+  saveFilesToSessionStorage();
 }
+
+const saveFilesToSessionStorage = () => {
+  sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(selectedFiles));
+  sessionStorage.setItem(`${SESSION_STORAGE_KEY}_timestamp`, new Date().getTime());
+};
+
+const retrieveFilesFromSessionStorage = () => {
+  const storedFiles = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY));
+  const storedTimestamp = sessionStorage.getItem(`${SESSION_STORAGE_KEY}_timestamp`);
+  const currentTimestamp = new Date().getTime();
+
+  if (storedFiles && storedTimestamp && (currentTimestamp - parseInt(storedTimestamp, 10)) < SESSION_EXPIRATION) {
+    selectedFiles.splice(0, selectedFiles.length, ...storedFiles);
+  } else {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    sessionStorage.removeItem(`${SESSION_STORAGE_KEY}_timestamp`);
+  }
+};
+
+onMounted(() => {
+  retrieveFilesFromSessionStorage();
+});
+
+onBeforeUnmount(() => {
+  saveFilesToSessionStorage();
+});
 
 </script>
 
@@ -122,8 +147,7 @@ const deleteFile = (index) => {
       <div class="tabs">
         <button v-for="(file, index) in selectedFiles" :key="index" @click="activeIndex = index"
           :class="{ active: activeIndex === index }">
-          <img :src="selectedFiles[index].imagePreview" alt="Uploaded image"
-          style="width: 50px; height: 50px;">
+          <img :src="selectedFiles[index].imagePreview" alt="Uploaded image" style="width: 50px; height: 50px;">
         </button>
       </div>
 
