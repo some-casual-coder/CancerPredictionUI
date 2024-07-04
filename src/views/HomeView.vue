@@ -6,8 +6,9 @@ const selectedFiles = reactive([]);
 const isDragging = ref(false);
 const activeIndex = ref(0);
 const fileInput = ref(null);
-const SESSION_STORAGE_KEY = 'selectedFiles';
-const SESSION_EXPIRATION = 3 * 60 * 60 * 1000;
+// const SESSION_STORAGE_KEY = 'selectedFiles';
+// const SESSION_EXPIRATION = 3 * 60 * 60 * 1000;
+// const SESSION_EXPIRATION = 10;
 
 const handleFileUpload = (event, index) => {
   const file = event.target.files[0];
@@ -106,20 +107,26 @@ const deleteFile = (index) => {
 }
 
 const saveFilesToSessionStorage = () => {
-  sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(selectedFiles));
-  sessionStorage.setItem(`${SESSION_STORAGE_KEY}_timestamp`, new Date().getTime());
+  // sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(selectedFiles));
+  // sessionStorage.setItem(`${SESSION_STORAGE_KEY}_timestamp`, new Date().getTime());
+  sessionStorage.setItem('selectedFiles', JSON.stringify(selectedFiles));
 };
 
 const retrieveFilesFromSessionStorage = () => {
-  const storedFiles = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY));
-  const storedTimestamp = sessionStorage.getItem(`${SESSION_STORAGE_KEY}_timestamp`);
-  const currentTimestamp = new Date().getTime();
+  // const storedFiles = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY));
+  // const storedTimestamp = sessionStorage.getItem(`${SESSION_STORAGE_KEY}_timestamp`);
+  // const currentTimestamp = new Date().getTime();
 
-  if (storedFiles && storedTimestamp && (currentTimestamp - parseInt(storedTimestamp, 10)) < SESSION_EXPIRATION) {
-    selectedFiles.splice(0, selectedFiles.length, ...storedFiles);
-  } else {
-    sessionStorage.removeItem(SESSION_STORAGE_KEY);
-    sessionStorage.removeItem(`${SESSION_STORAGE_KEY}_timestamp`);
+  // if (storedFiles && storedTimestamp && (currentTimestamp - parseInt(storedTimestamp, 10)) < SESSION_EXPIRATION) {
+  //   selectedFiles.splice(0, selectedFiles.length, ...storedFiles);
+  // } else {
+  //   sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  //   sessionStorage.removeItem(`${SESSION_STORAGE_KEY}_timestamp`);
+  // }
+
+  const storedFiles = sessionStorage.getItem('selectedFiles');
+  if (storedFiles) {
+    selectedFiles.splice(0, selectedFiles.length, ...JSON.parse(storedFiles));
   }
 };
 
