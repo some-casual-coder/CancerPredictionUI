@@ -1,52 +1,53 @@
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount } from 'vue';
-import axios from 'axios';
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import axios from 'axios'
 
-const selectedFiles = reactive([]);
-const isDragging = ref(false);
-const activeIndex = ref(0);
-const fileInput = ref(null);
-// const SESSION_STORAGE_KEY = 'selectedFiles';
+const selectedFiles = reactive([])
+const isDragging = ref(false)
+const activeIndex = ref(0)
+const fileInput = ref(null)
+const SESSION_STORAGE_KEY = 'selectedFiles';
 // const SESSION_EXPIRATION = 3 * 60 * 60 * 1000;
-// const SESSION_EXPIRATION = 10;
+const SESSION_EXPIRATION = 10;
 
 const handleFileUpload = (event, index) => {
-  const file = event.target.files[0];
+  const file = event.target.files[0]
   if (index === undefined) {
-    addNewFile(file);
+    addNewFile(file)
   } else {
-    selectedFiles[index].file = file;
-    selectedFiles[index].imagePreview = URL.createObjectURL(file);
-    selectedFiles[index].uploaded = false;
-    selectedFiles[index].predictionMessage = '';
+    selectedFiles[index].file = file
+    selectedFiles[index].imagePreview = URL.createObjectURL(file)
+    selectedFiles[index].uploaded = false
+    selectedFiles[index].prediction = ''
+    selectedFiles[index].probability = ''
   }
-};
+}
 
 const handleDragOver = (event) => {
-  event.preventDefault();
-  isDragging.value = true;
-};
+  event.preventDefault()
+  isDragging.value = true
+}
 
 const handleDragLeave = (event) => {
-  event.preventDefault();
-  isDragging.value = false;
-};
+  event.preventDefault()
+  isDragging.value = false
+}
 
 const handleDrop = (event) => {
-  event.preventDefault();
-  isDragging.value = false;
-  const files = event.dataTransfer.files;
+  event.preventDefault()
+  isDragging.value = false
+  const files = event.dataTransfer.files
   if (files.length > 0) {
-    addNewFile(files[0]);
+    addNewFile(files[0])
   }
-};
+}
 
 const handleNewFileSelection = (event) => {
-  const file = event.target.files[0];
+  const file = event.target.files[0]
   if (file) {
-    addNewFile(file);
+    addNewFile(file)
   }
-};
+}
 
 const addNewFile = (file = null) => {
   selectedFiles.push({
@@ -54,23 +55,37 @@ const addNewFile = (file = null) => {
     imagePreview: file ? URL.createObjectURL(file) : null,
     uploaded: false,
     isScanning: false,
-    predictionMessage: '',
-  });
-  activeIndex.value = selectedFiles.length - 1;
+    isBouncing: false,
+    prediction: '',
+    probability: ''
+  })
+  activeIndex.value = selectedFiles.length - 1
   saveFilesToSessionStorage();
-};
+  if (file) {
+    triggerBounceAnimation(activeIndex.value);
+  }
+}
+
+const triggerBounceAnimation = (index) => {
+  const file = selectedFiles[index];
+  file.isBouncing = true;
+
+  setTimeout(() => {
+    file.isBouncing = false;
+  }, 1000);
+}
 
 const uploadImage = async (index) => {
-  const selectedFile = selectedFiles[index];
+  const selectedFile = selectedFiles[index]
   if (!selectedFile.file) {
-    return;
+    return
   }
 
-  const formData = new FormData();
-  formData.append('image', selectedFile.file);
+  const formData = new FormData()
+  formData.append('image', selectedFile.file)
 
   try {
-    selectedFile.isScanning = true;
+    selectedFile.isScanning = true
     // const response = await axios.post('/api/upload', formData, {
     //   headers: {
     //     'Content-Type': 'multipart/form-data'
@@ -80,138 +95,177 @@ const uploadImage = async (index) => {
     //   throw new Error(`HTTP error! status: ${response.status}`);
     // }
 
-    // Simulating API response
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    const scanningDuration = 5000
+    const scanningStart = Date.now()
 
-    selectedFile.predictionMessage = `Negative 85% sure`;
-    selectedFile.uploaded = true;
+    await new Promise((resolve) => setTimeout(resolve, scanningDuration))
+
+    const elapsedTime = Date.now() - scanningStart
+    if (elapsedTime < scanningDuration) {
+      await new Promise((resolve) => setTimeout(resolve, scanningDuration - elapsedTime))
+    }
+
+    selectedFile.prediction = `No Breast Cancer Detected`
+    selectedFile.probability = `90% probability`
+    // selectedFile.prediction = response.prediction;
+    // selectedFile.probability = `${response.probability}% probability`;
+    selectedFile.uploaded = true
   } catch (error) {
-    console.error('Error uploading image:', error);
+    console.error('Error uploading image:', error)
   } finally {
-    selectedFile.isScanning = false;
-    saveFilesToSessionStorage();
+    selectedFile.isScanning = false
+    saveFilesToSessionStorage()
   }
-};
+}
 
 const resetFileInput = (index) => {
-  selectedFiles[index].file = null;
-  selectedFiles[index].imagePreview = null;
-  selectedFiles[index].predictionMessage = '';
-  selectedFiles[index].uploaded = false;
-  saveFilesToSessionStorage();
-};
+  selectedFiles[index].file = null
+  selectedFiles[index].imagePreview = null
+  selectedFiles[index].prediction = ''
+  selectedFiles[index].probability = ''
+  selectedFiles[index].uploaded = false
+  saveFilesToSessionStorage()
+}
 
 const deleteFile = (index) => {
-  selectedFiles.splice(index, 1);
-  saveFilesToSessionStorage();
+  selectedFiles.splice(index, 1)
+  saveFilesToSessionStorage()
 }
 
 const saveFilesToSessionStorage = () => {
-  // sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(selectedFiles));
-  // sessionStorage.setItem(`${SESSION_STORAGE_KEY}_timestamp`, new Date().getTime());
-  sessionStorage.setItem('selectedFiles', JSON.stringify(selectedFiles));
-};
+  sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(selectedFiles));
+  sessionStorage.setItem(`${SESSION_STORAGE_KEY}_timestamp`, new Date().getTime());
+  // sessionStorage.setItem('selectedFiles', JSON.stringify(selectedFiles))
+}
 
 const retrieveFilesFromSessionStorage = () => {
-  // const storedFiles = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY));
-  // const storedTimestamp = sessionStorage.getItem(`${SESSION_STORAGE_KEY}_timestamp`);
-  // const currentTimestamp = new Date().getTime();
+  const storedFiles = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY));
+  const storedTimestamp = sessionStorage.getItem(`${SESSION_STORAGE_KEY}_timestamp`);
+  const currentTimestamp = new Date().getTime();
 
-  // if (storedFiles && storedTimestamp && (currentTimestamp - parseInt(storedTimestamp, 10)) < SESSION_EXPIRATION) {
-  //   selectedFiles.splice(0, selectedFiles.length, ...storedFiles);
-  // } else {
-  //   sessionStorage.removeItem(SESSION_STORAGE_KEY);
-  //   sessionStorage.removeItem(`${SESSION_STORAGE_KEY}_timestamp`);
-  // }
-
-  const storedFiles = sessionStorage.getItem('selectedFiles');
-  if (storedFiles) {
-    selectedFiles.splice(0, selectedFiles.length, ...JSON.parse(storedFiles));
+  if (storedFiles && storedTimestamp && (currentTimestamp - parseInt(storedTimestamp, 10)) < SESSION_EXPIRATION) {
+    selectedFiles.splice(0, selectedFiles.length, ...storedFiles);
+  } else {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    sessionStorage.removeItem(`${SESSION_STORAGE_KEY}_timestamp`);
   }
-};
+
+  // const storedFiles = sessionStorage.getItem('selectedFiles')
+  // if (storedFiles) {
+  //   selectedFiles.splice(0, selectedFiles.length, ...JSON.parse(storedFiles))
+  // }
+}
 
 onMounted(() => {
-  retrieveFilesFromSessionStorage();
-});
+  retrieveFilesFromSessionStorage()
+})
 
 onBeforeUnmount(() => {
-  saveFilesToSessionStorage();
-});
-
+  saveFilesToSessionStorage()
+})
 </script>
 
 <template>
-  <div>
+  <div class="container">
     <div v-if="selectedFiles.length === 0" class="drop-zone" @dragover="handleDragOver" @dragleave="handleDragLeave"
-      @drop="handleDrop" :class="{ 'dragging': isDragging }">
+      @drop="handleDrop" :class="{ dragging: isDragging }">
       <label for="file-input-main" class="drop-zone-label">
+        <img src="../assets/add.png" alt="Add Image" />
         <p>Drag and drop an image here, or click to select a file</p>
       </label>
-      <input id="file-input-main" type="file" @change="(event) => handleFileUpload(event)" accept="image/*">
+      <input id="file-input-main" type="file" @change="(event) => handleFileUpload(event)" accept="image/*" />
     </div>
 
     <div v-if="selectedFiles.length > 0" class="image-carousel">
-      <div class="tabs">
-        <button v-for="(file, index) in selectedFiles" :key="index" @click="activeIndex = index"
-          :class="{ active: activeIndex === index }">
-          <img :src="selectedFiles[index].imagePreview" alt="Uploaded image" style="width: 50px; height: 50px;">
-        </button>
-      </div>
-
       <div class="image-details">
         <div class="image-preview" v-if="selectedFiles[activeIndex].imagePreview">
-          <div class="image-container" :class="{ 'scanning': selectedFiles[activeIndex].isScanning }">
-            <img :src="selectedFiles[activeIndex].imagePreview" alt="Uploaded image"
-              style="max-width: 300px; max-height: 200px;">
+          <div class="image-container" :class="{ scanning: selectedFiles[activeIndex].isScanning }">
+            <img class="uploaded-image" :src="selectedFiles[activeIndex].imagePreview"
+              :class="{ 'bouncing': selectedFiles[activeIndex].isBouncing }" alt="Uploaded image" />
             <div class="scan-line" v-if="selectedFiles[activeIndex].isScanning"></div>
-          </div>
-          <div v-if="selectedFiles[activeIndex].predictionMessage" class="prediction-message">
-            {{ selectedFiles[activeIndex].predictionMessage }}
+            <div class="image-actions">
+              <label :for="'file-input-' + activeIndex" class="add-icon">
+                <img src="../assets/image-editing.png" alt="Edit" />
+              </label>
+              <input :id="'file-input-' + activeIndex" type="file"
+                @change="(event) => handleFileUpload(event, activeIndex)" accept="image/*" style="display: none" />
+              <img @click="deleteFile(activeIndex)" class="delete-icon" src="../assets/trash.png" alt="Delete" />
+            </div>
           </div>
         </div>
         <div class="buttons">
+          <p>
+            Simply upload your mammogram and let our advanced AI tool help detect potential signs of
+            breast cancer
+          </p>
+          <div v-if="selectedFiles[activeIndex].prediction" class="prediction-message">
+            <p>{{ selectedFiles[activeIndex].prediction }}</p>
+            <p class="prob-message" v-if="selectedFiles[activeIndex].probability">
+              {{ selectedFiles[activeIndex].probability }}
+            </p>
+          </div>
           <button v-if="!selectedFiles[activeIndex].uploaded" @click="uploadImage(activeIndex)"
-            :disabled="!selectedFiles[activeIndex].file">Upload</button>
-          <button v-else @click="resetFileInput(activeIndex)">Redo</button>
-          <label :for="'file-input-' + activeIndex" class="add-icon">
-            <p>+</p>
-          </label>
-          <input :id="'file-input-' + activeIndex" type="file" @change="(event) => handleFileUpload(event, activeIndex)"
-            accept="image/*" style="display: none;">
-          <button @click="deleteFile(activeIndex)">Delete</button>
+            :disabled="!selectedFiles[activeIndex].file" class="slide">
+            Upload
+          </button>
+          <button v-else @click="uploadImage(activeIndex)" class="slide">Reupload</button>
         </div>
       </div>
-    </div>
 
-    <div v-if="selectedFiles.length > 0" class="plus-button">
-      <label for="file-input-main" class="drop-zone-label">
-        <p>+</p>
-      </label>
-      <input id="file-input-main" type="file" @change="(event) => handleFileUpload(event)" accept="image/*"
-        style="display: none;">
+      <div class="tabs">
+        <div v-if="selectedFiles.length > 0" class="plus-button">
+          <label for="file-input-main" class="drop-zone-label">
+            <img src="../assets/add-2.png" alt="Add" />
+          </label>
+          <input id="file-input-main" type="file" @change="(event) => handleFileUpload(event)" accept="image/*"
+            style="display: none" />
+        </div>
+        <button v-for="(file, index) in selectedFiles" :key="index" @click="activeIndex = index"
+          :class="{ active: activeIndex === index }">
+          <img :src="selectedFiles[index].imagePreview" alt="Uploaded image" style="width: 50px; height: 50px" />
+        </button>
+      </div>
     </div>
+    <!-- style="width: 250px; height: 250px;" -->
   </div>
 </template>
 
-<style scoped>
+<style>
+@media (min-width: 1024px) {
+  #app {
+    display: flex !important;
+  }
+
+  .image-details {
+    width: 800px;
+  }
+}
+
 .drop-zone {
-  width: 300px;
-  height: 200px;
+  width: 700px;
+  height: 300px;
   border: 2px dashed #ccc;
   border-radius: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-direction: column;
+  text-align: center;
   cursor: pointer;
-  transition: border .3s ease;
+  transition: border 0.3s ease;
+  margin-top: 10px;
+
+  & img {
+    width: 130px;
+    margin-bottom: 20px;
+  }
 }
 
 .drop-zone.dragging {
   border-color: #000;
 }
 
-.drop-zone input[type="file"] {
+.drop-zone input[type='file'] {
   display: none;
 }
 
@@ -224,120 +278,241 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-.image-list {
+.image-details {
   display: flex;
-  flex-direction: column;
-  gap: 20px;
-  margin-top: 20px;
-}
-
-.image-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.image-preview {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-}
-
-.image-scanning {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.scan-line {
-  position: absolute;
-  width: 100%;
-  height: 2px;
-  background: rgba(255, 0, 0, 0.5);
-  animation: line-up 3s linear infinite;
-}
-
-.scanning .scan-line {
-  animation: line-up 3s linear;
-}
-
-.buttons {
-  display: flex;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.add-icon {
-  cursor: pointer;
-}
-
-.prediction-message {
-  margin-top: 10px;
-  animation: show-fade 2s ease-in-out;
+  flex-direction: row;
+  justify-content: flex-start;
+  padding: 10px 5px 40px 5px;
+  border: 1px solid #777777;
+  border-radius: 10px;
 }
 
 .image-carousel {
   margin-top: 20px;
 }
 
-.tabs {
+.image-container {
+  position: relative;
+  /* overflow: hidden; */
   display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px;
+  width: 250px;
+  height: 250px;
+
+  & .uploaded-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    margin-bottom: 15px;
+  }
+
+  & .image-actions {
+    & img {
+      width: 45px;
+      margin: 0 5px;
+      padding: 5px;
+      background-color: white;
+      border-radius: 10px;
+      transition: all 0.3s ease-in-out;
+
+      &:hover {
+        cursor: pointer;
+        opacity: 0.8;
+      }
+    }
+  }
 }
 
-.tabs button {
-  padding: 5px 10px;
-  border: 1px solid #ccc;
-  background: #f0f0f0;
+.scanning .uploaded-image {
+  animation: fade 5s ease-in-out infinite;
+}
+
+.scan-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 8px;
+  background: #3fefef;
+  border-radius: 8px;
+  filter: drop-shadow(0 0 20px #3fefef) drop-shadow(0 0 60px #3fefef);
+  opacity: 0;
+}
+
+.scanning .scan-line {
+  animation: scan 5s ease-in-out infinite;
+}
+
+@keyframes fade {
+
+  0%,
+  100% {
+    filter: invert(0%);
+  }
+
+  50% {
+    filter: invert(100%);
+  }
+}
+
+@keyframes scan {
+
+  0%,
+  100% {
+    top: 0;
+    opacity: 0;
+  }
+
+  5%,
+  95% {
+    opacity: 1;
+  }
+
+  50% {
+    top: calc(100% - 8px);
+  }
+}
+
+@keyframes bounce {
+
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+
+  40% {
+    transform: translateY(-30px);
+  }
+
+  60% {
+    transform: translateY(-15px);
+  }
+}
+
+.bouncing {
+  animation: bounce 1.4s ease;
+}
+
+.image-preview {
+  display: flex;
+  align-items: start;
+  justify-content: center;
+  flex-direction: column;
+  width: 100%;
+  justify-self: self-start;
+  border-right: 1px dashed rgb(136, 136, 136);
+}
+
+.add-icon {
   cursor: pointer;
 }
 
-.tabs button.active {
-  background: #007bff;
-  color: white;
+.image-carousel .buttons {
+  width: 70%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0 15px 20px 15px;
+
+  &>p {
+    padding: 10px;
+    background-color: rgba(223, 255, 238, 0.8);
+    color: black;
+    margin-top: 30px;
+    border-radius: 10px;
+  }
+
+  & button {
+    background-color: #181818;
+    border: 3px solid #42b883;
+    color: #42b883;
+    padding: 8px 40px;
+    border-radius: 30px;
+    font-size: 23px;
+    transition: all 0.3s ease-in-out;
+
+    &:hover {
+      cursor: pointer;
+      color: black;
+      background-color: #42b883;
+    }
+  }
 }
 
-.image-details {
-  border: 1px solid #ccc;
-  padding: 20px;
-  border-radius: 5px;
+.prediction-message {
+  margin-top: 10px;
+  animation: show-fade 2s ease-in-out;
+
+  & p {
+    padding: 10px;
+    background-color: white;
+    color: black;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+  }
+
+  & .prob-message {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    background-color: #a2ffd5;
+  }
 }
 
-.add-new {
+.tabs {
+  display: flex;
+  gap: 10px;
   margin-top: 20px;
 }
 
-@keyframes line-up {
-  0% {
-    top: 200px;
-    opacity: 0;
-  }
+.tabs button {
+  width: 70px;
+  height: 70px;
+  border: transparent;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: 0.3s ease-in;
 
-  10% {
-    top: 200px;
-    opacity: 1;
-  }
-
-  85% {
-    top: -5px;
-    opacity: 1;
-  }
-
-  100% {
-    opacity: 0;
+  &:hover {
+    opacity: 0.8;
   }
 }
 
-@keyframes show-fade {
-  0% {
-    opacity: 0;
+.tabs .plus-button {
+  width: 70px;
+  height: 70px;
+  border: transparent;
+  background: rgba(208, 255, 230, 0.8);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: 0.3s ease-in;
+
+  &:hover {
+    opacity: 0.8;
   }
 
-  100% {
-    opacity: 1;
+  & img {
+    width: 40px;
+    margin-top: 5px;
   }
+}
+
+.tabs button.active {
+  transition: all 0.3s ease-in-out;
+  background: rgba(66, 184, 131, 0.6);
+  color: white;
 }
 </style>
