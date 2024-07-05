@@ -1,5 +1,24 @@
+<script>
+import { defineComponent } from 'vue';
+
+export default defineComponent({
+  name: 'HomeView',
+  methods: {
+    getProbabilityClass(probability) {
+      if (probability > 0.8) {
+        return 'bg-light-green';
+      } else if (probability > 0.5) {
+        return 'bg-light-yellow';
+      } else {
+        return 'bg-light-red';
+      }
+    }
+  }
+});
+</script>
+
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, watch } from 'vue'
 import axios from 'axios'
 
 const selectedFiles = reactive([])
@@ -7,8 +26,16 @@ const isDragging = ref(false)
 const activeIndex = ref(0)
 const fileInput = ref(null)
 const SESSION_STORAGE_KEY = 'selectedFiles';
-// const SESSION_EXPIRATION = 3 * 60 * 60 * 1000;
-const SESSION_EXPIRATION = 10;
+const SESSION_EXPIRATION = 3 * 60 * 60 * 1000;
+// const SESSION_EXPIRATION = 10;
+
+watch(selectedFiles, (newFiles) => {
+  if (newFiles.length === 0) {
+    activeIndex.value = 0
+  } else if (activeIndex.value >= newFiles.length) {
+    activeIndex.value = newFiles.length - 1
+  }
+})
 
 const handleFileUpload = (event, index) => {
   const file = event.target.files[0]
@@ -20,6 +47,7 @@ const handleFileUpload = (event, index) => {
     selectedFiles[index].uploaded = false
     selectedFiles[index].prediction = ''
     selectedFiles[index].probability = ''
+    selectedFiles[index].probabilityValue = 0
   }
 }
 
@@ -57,7 +85,8 @@ const addNewFile = (file = null) => {
     isScanning: false,
     isBouncing: false,
     prediction: '',
-    probability: ''
+    probability: '',
+    probabilityValue: 0
   })
   activeIndex.value = selectedFiles.length - 1
   saveFilesToSessionStorage();
@@ -107,6 +136,8 @@ const uploadImage = async (index) => {
 
     selectedFile.prediction = `No Breast Cancer Detected`
     selectedFile.probability = `90% probability`
+    selectedFile.probabilityValue = 0.6
+    // selectedFile.probabilityValue = response.probability;
     // selectedFile.prediction = response.prediction;
     // selectedFile.probability = `${response.probability}% probability`;
     selectedFile.uploaded = true
@@ -116,15 +147,6 @@ const uploadImage = async (index) => {
     selectedFile.isScanning = false
     saveFilesToSessionStorage()
   }
-}
-
-const resetFileInput = (index) => {
-  selectedFiles[index].file = null
-  selectedFiles[index].imagePreview = null
-  selectedFiles[index].prediction = ''
-  selectedFiles[index].probability = ''
-  selectedFiles[index].uploaded = false
-  saveFilesToSessionStorage()
 }
 
 const deleteFile = (index) => {
@@ -177,14 +199,17 @@ onBeforeUnmount(() => {
     </div>
 
     <div v-if="selectedFiles.length > 0" class="image-carousel">
-      <div class="image-details">
+      <div class="image-details" v-if="selectedFiles[activeIndex]">
         <div class="image-preview" v-if="selectedFiles[activeIndex].imagePreview">
           <div class="image-container" :class="{ scanning: selectedFiles[activeIndex].isScanning }">
-            <img class="uploaded-image" :src="selectedFiles[activeIndex].imagePreview"
-              :class="{ 'bouncing': selectedFiles[activeIndex].isBouncing }" alt="Uploaded image" />
+            <div class="image-wrapper">
+              <img class="uploaded-image" :src="selectedFiles[activeIndex].imagePreview"
+                :class="{ 'bouncing': selectedFiles[activeIndex].isBouncing }" alt="Uploaded image" />
+              <div class="scan-overlay"></div>
+            </div>
             <div class="scan-line" v-if="selectedFiles[activeIndex].isScanning"></div>
             <div class="image-actions">
-              <label :for="'file-input-' + activeIndex" class="add-icon">
+              <label :for="'file-input-' + activeIndex" class="add-icon" v-if="!selectedFiles[activeIndex].uploaded">
                 <img src="../assets/image-editing.png" alt="Edit" />
               </label>
               <input :id="'file-input-' + activeIndex" type="file"
@@ -200,7 +225,8 @@ onBeforeUnmount(() => {
           </p>
           <div v-if="selectedFiles[activeIndex].prediction" class="prediction-message">
             <p>{{ selectedFiles[activeIndex].prediction }}</p>
-            <p class="prob-message" v-if="selectedFiles[activeIndex].probability">
+            <p :class="getProbabilityClass(selectedFiles[activeIndex].probabilityValue)"
+              v-if="selectedFiles[activeIndex].probability">
               {{ selectedFiles[activeIndex].probability }}
             </p>
           </div>
@@ -226,7 +252,6 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </div>
-    <!-- style="width: 250px; height: 250px;" -->
   </div>
 </template>
 
@@ -238,6 +263,7 @@ onBeforeUnmount(() => {
 
   .image-details {
     width: 800px;
+    height: 800px;
   }
 }
 
@@ -282,7 +308,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
-  padding: 10px 5px 40px 5px;
+  padding: 10px 5px;
+  height: 350px;
   border: 1px solid #777777;
   border-radius: 10px;
 }
@@ -293,7 +320,6 @@ onBeforeUnmount(() => {
 
 .image-container {
   position: relative;
-  /* overflow: hidden; */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -304,13 +330,14 @@ onBeforeUnmount(() => {
   & .uploaded-image {
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: cover;
     background-color: rgba(255, 255, 255, 0.1);
     border-radius: 20px;
-    margin-bottom: 15px;
   }
 
   & .image-actions {
+    margin-top: 20px;
+
     & img {
       width: 45px;
       margin: 0 5px;
@@ -327,8 +354,22 @@ onBeforeUnmount(() => {
   }
 }
 
-.scanning .uploaded-image {
-  animation: fade 5s ease-in-out infinite;
+.image-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.scan-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 0;
+  border-radius: 20px 20px 0 0;
+  background-color: #fff;
+  mix-blend-mode: difference;
+  pointer-events: none;
 }
 
 .scan-line {
@@ -341,59 +382,15 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   filter: drop-shadow(0 0 20px #3fefef) drop-shadow(0 0 60px #3fefef);
   opacity: 0;
+  z-index: 1;
+}
+
+.scanning .scan-overlay {
+  animation: scan-effect 5s linear infinite;
 }
 
 .scanning .scan-line {
-  animation: scan 5s ease-in-out infinite;
-}
-
-@keyframes fade {
-
-  0%,
-  100% {
-    filter: invert(0%);
-  }
-
-  50% {
-    filter: invert(100%);
-  }
-}
-
-@keyframes scan {
-
-  0%,
-  100% {
-    top: 0;
-    opacity: 0;
-  }
-
-  5%,
-  95% {
-    opacity: 1;
-  }
-
-  50% {
-    top: calc(100% - 8px);
-  }
-}
-
-@keyframes bounce {
-
-  0%,
-  20%,
-  50%,
-  80%,
-  100% {
-    transform: translateY(0);
-  }
-
-  40% {
-    transform: translateY(-30px);
-  }
-
-  60% {
-    transform: translateY(-15px);
-  }
+  animation: scan-line 5s linear infinite;
 }
 
 .bouncing {
@@ -403,7 +400,8 @@ onBeforeUnmount(() => {
 .image-preview {
   display: flex;
   align-items: start;
-  justify-content: center;
+  justify-content: start;
+  margin-top: 15px;
   flex-direction: column;
   width: 100%;
   justify-self: self-start;
@@ -412,6 +410,18 @@ onBeforeUnmount(() => {
 
 .add-icon {
   cursor: pointer;
+}
+
+.image-carousel .buttons .bg-light-green {
+  background-color: #a2ffd5;
+}
+
+.image-carousel .buttons .bg-light-red {
+  background-color: #ffa2a2;
+}
+
+.image-carousel .buttons .bg-light-yellow {
+  background-color: #fffaa2;
 }
 
 .image-carousel .buttons {
@@ -426,7 +436,7 @@ onBeforeUnmount(() => {
     padding: 10px;
     background-color: rgba(223, 255, 238, 0.8);
     color: black;
-    margin-top: 30px;
+    margin-top: 15px;
     border-radius: 10px;
   }
 
@@ -458,14 +468,6 @@ onBeforeUnmount(() => {
     margin-top: 10px;
     margin-bottom: 10px;
     border-radius: 10px;
-  }
-
-  & .prob-message {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    background-color: #a2ffd5;
   }
 }
 
@@ -514,5 +516,64 @@ onBeforeUnmount(() => {
   transition: all 0.3s ease-in-out;
   background: rgba(66, 184, 131, 0.6);
   color: white;
+}
+
+@keyframes scan-effect {
+
+  0%,
+  100% {
+    height: 0;
+  }
+
+  50% {
+    height: 100%;
+  }
+}
+
+@keyframes scan-line {
+
+  0%,
+  100% {
+    top: 0;
+    opacity: 0;
+  }
+
+  5%,
+  95% {
+    opacity: 1;
+  }
+
+  50% {
+    top: calc(100% - 4px);
+  }
+}
+
+@keyframes bounce {
+
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+
+  40% {
+    transform: translateY(-30px);
+  }
+
+  60% {
+    transform: translateY(-15px);
+  }
+}
+
+@keyframes show-fade {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 </style>
